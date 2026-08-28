@@ -895,7 +895,7 @@
             tbody.innerHTML = res.students.map(s => {
                 const currentVal = res.evaluations[s.username] || "Tidak Hadir";
                 let optionsHtml = evaluationOptions.map(opt => `<option value="${opt}" ${currentVal === opt ? 'selected' : ''}>${opt}</option>`).join('');
-                return `<tr><td class="fw-bold text-dark">${s.nama}</td><td><code>${s.username}</code></td><td><select class="form-select form-select-sm school-eval-select" data-username="${s.username}">${optionsHtml}</select></td></tr>`;
+                return `<tr><td class="fw-bold text-dark">${s.nama}</td><td><select class="form-select form-select-sm school-eval-select" data-username="${s.username}">${optionsHtml}</select></td></tr>`;
             }).join('');
         });
     };
