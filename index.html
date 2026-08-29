@@ -1152,42 +1152,46 @@
     };
 
     function loadPendampinganWaliKelas() {
-        const tbody = document.getElementById('wk-pendampingan-list'); 
-        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4">Memuat data...</td></tr>`;
-        
-        callAPI('getPendampinganWaliKelas', {}).then(res => {
-            currentPendampinganData = res.data;
-            if(res.data.length === 0) { 
-                tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted small">Tidak ada data kasus.</td></tr>`; 
-                return; 
-            }
-            tbody.innerHTML = res.data.map(p => {
-                let badgeClass = p.Status === 'Selesai' ? 'badge-done' : (p.Status.includes('BK') ? 'badge-forward' : 'badge-wait');
-                let statusBadgeHtml = `<span class="status-badge ${badgeClass}">${p.Status}</span>`;
-                
-                let aksi = `
-                    <button class="btn btn-sm btn-success py-1 px-2 fw-bold text-white me-1" onclick="openWkModal('${p.ID}', 'Selesai')">Tindak Lanjut</button>
-                    <button class="btn btn-sm text-white py-1 px-2 fw-bold" style="background-color: #7c3aed;" onclick="openWkModal('${p.ID}', 'Teruskan ke Guru BK')">Teruskan ke BK</button>
-                `;
-                return `
-                    <tr>
-                        <td class="small">${p.Tanggal}</td>
-                        <td class="fw-bold">
-                            ${p.Nama_Siswa}
-                            <div class="text-danger small fw-normal">Pelanggaran: ${p.Bentuk_Pendampingan}</div>
-                            <div class="text-dark small fw-semibold mt-1">Penanganan Guru Wali:</div>
-                            <div class="text-muted small fw-normal">${p.Hasil_Tindak_Lanjut || '-'}</div>
-                        </td>
-                        <td>
-                            <div class="small text-dark">${p.Penanganan_Wali_Kelas || '<span class="text-muted italic">-</span>'}</div>
-                        </td>
-                        <td>${statusBadgeHtml}</td>
-                        <td class="text-center no-print">${aksi}</td>
-                    </tr>
-                `;
-            }).join('');
-        });
-    }
+    const tbody = document.getElementById('wk-pendampingan-list'); 
+    tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4">Memuat data...</td></tr>`;
+    
+    // Mengirim username dan nama Wali Kelas yang sedang login
+    callAPI('getPendampinganWaliKelas', { 
+        username: currentUser.username,
+        namaGuru: currentUser.nama 
+    }).then(res => {
+        currentPendampinganData = res.data;
+        if(res.data.length === 0) { 
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted small">Tidak ada data kasus untuk siswa perwalian Anda.</td></tr>`; 
+            return; 
+        }
+        tbody.innerHTML = res.data.map(p => {
+            let badgeClass = p.Status === 'Selesai' ? 'badge-done' : (p.Status.includes('BK') ? 'badge-forward' : 'badge-wait');
+            let statusBadgeHtml = `<span class="status-badge ${badgeClass}">${p.Status}</span>`;
+            
+            let aksi = `
+                <button class="btn btn-sm btn-success py-1 px-2 fw-bold text-white me-1" onclick="openWkModal('${p.ID}', 'Selesai')">Tindak Lanjut</button>
+                <button class="btn btn-sm text-white py-1 px-2 fw-bold" style="background-color: #7c3aed;" onclick="openWkModal('${p.ID}', 'Teruskan ke Guru BK')">Teruskan ke BK</button>
+            `;
+            return `
+                <tr>
+                    <td class="small">${p.Tanggal}</td>
+                    <td class="fw-bold">
+                        ${p.Nama_Siswa}
+                        <div class="text-danger small fw-normal">Pelanggaran: ${p.Bentuk_Pendampingan}</div>
+                        <div class="text-dark small fw-semibold mt-1">Penanganan Guru Wali:</div>
+                        <div class="text-muted small fw-normal">${p.Hasil_Tindak_Lanjut || '-'}</div>
+                    </td>
+                    <td>
+                        <div class="small text-dark">${p.Penanganan_Wali_Kelas || '<span class="text-muted italic">-</span>'}</div>
+                    </td>
+                    <td>${statusBadgeHtml}</td>
+                    <td class="text-center no-print">${aksi}</td>
+                </tr>
+            `;
+        }).join('');
+    });
+}
 
     // MODAL WALI KELAS DIPANGGIL UNTUK DUA STATUS (SELESAI / TERUSKAN KE BK)
     window.openWkModal = function(id, targetStatus) {
