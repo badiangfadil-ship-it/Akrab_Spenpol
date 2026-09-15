@@ -54,8 +54,6 @@
         .btn-primary { background-color: var(--primary-color); border: none; border-radius: 12px; padding: 0.75rem 1.25rem; font-weight: 700; font-size: 0.95rem; box-shadow: 0 4px 12px rgba(13, 148, 136, 0.25); }
         .btn-primary:hover { background-color: var(--primary-dark); }
         
-        .footer-embossed { color: #64748b; background-color: #ffffff; font-weight: 600; text-align: center; padding: 14px; border-radius: 12px; margin-top: auto; width: 100%; font-size: 0.8rem; border: 1px solid #e2e8f0; }
-        
         .sidebar-overlay { display: none; position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(15, 23, 42, 0.5); z-index: 1030; backdrop-filter: blur(3px); }
         .fade-in { animation: fadeIn 0.3s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
@@ -78,15 +76,6 @@
             body { background: white !important; color: black !important; }
             .main-content { margin-left: 0 !important; padding: 0 !important; }
             @page { size: A4 landscape; margin: 10mm; }
-            
-            .print-page-item {
-                break-before: page;
-                page-break-before: always;
-            }
-            .print-page-item:first-child {
-                break-before: avoid;
-                page-break-before: avoid;
-            }
         }
         .print-header-wrapper { display: flex; align-items: center; justify-content: space-between; border-bottom: 3px double #000; padding-bottom: 10px; margin-bottom: 15px; }
         .print-logo { width: 55px; height: 55px; object-fit: contain; }
@@ -345,7 +334,7 @@
                     </div>
                     <div class="table-responsive">
                         <table class="table table-hover align-middle">
-                            <thead class="table-light"><tr><th>Nama Lengkap</th><th width="280">Penilaian</th></tr></thead>
+                            <thead class="table-light"><tr><th>Nama Lengkap</th><th>Username</th><th width="280">Penilaian</th></tr></thead>
                             <tbody id="school-student-list"></tbody>
                         </table>
                     </div>
@@ -698,7 +687,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxTzTEJmw4V3D7kn_QCj1TO0VX9A5DD81f3fB4XTePHre8tBBSG6zfRbWUZsS9BzEq8CQ/exec"; 
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzqYR4lwyEw5eSeTzRKteDFO25GtBR7EbU_Z0x_r380FcngOyCsi48GOs8-2u1Kflah/exec"; 
 
     async function callAPI(action, params = {}) {
         try {
@@ -722,11 +711,34 @@
         document.getElementById('admin-report-year').value = today.getFullYear();
         document.getElementById('admin-report-month').value = today.getMonth() + 1;
 
+        // CEK LOCALSTORAGE UNTUK AUTO-LOGIN APABILA SESI SUDAH ADA
+        const savedUser = localStorage.getItem('akrab_current_user');
+        const savedRole = localStorage.getItem('akrab_current_role');
+        const savedHabits = localStorage.getItem('akrab_current_habits');
+
         callAPI('getInitialData').then(data => {
             if (data.error) throw new Error(data.message);
-            document.getElementById('loader').classList.add('d-none'); document.getElementById('section-login').classList.remove('d-none');
             schoolSettings = data.settings || {}; allStudentsData = data.students || [];
             populateDropdownKelas(allStudentsData); populateDropdownSiswa(allStudentsData);
+
+            document.getElementById('loader').classList.add('d-none');
+
+            if (savedUser && savedRole) {
+                currentUser = JSON.parse(savedUser);
+                if (savedHabits) currentHabits = JSON.parse(savedHabits);
+                
+                if (savedRole === 'admin') {
+                    document.getElementById('admin-welcome-name').innerText = "Guru Wali: " + currentUser.nama;
+                } else if (savedRole === 'walikelas') {
+                    document.getElementById('walikelas-welcome-name').innerText = "Wali Kelas: " + currentUser.nama;
+                } else if (savedRole === 'gurubk') {
+                    document.getElementById('bk-welcome-name').innerText = "Guru BK: " + currentUser.nama;
+                }
+                
+                showApp(savedRole);
+            } else {
+                document.getElementById('section-login').classList.remove('d-none');
+            }
         }).catch(err => { document.getElementById('loader-text').innerHTML = `<div class="alert alert-danger mt-3 text-start small"><strong>Gagal Terhubung:</strong><br>${err.message}</div>`; });
     });
 
@@ -741,34 +753,58 @@
     };
     function populateDropdownSiswa(st) { document.getElementById('dropdown-siswa').innerHTML = '<option value="">-- Pilih Siswa --</option>' + st.map(s => `<option value="${s.username}">${s.nama}</option>`).join(''); }
 
-    // LOGIN HANDLERS
+    // LOGIN HANDLERS (DITAMBAHKAN LOCALSTORAGE)
     document.getElementById('form-login-siswa').onsubmit = function(e) { e.preventDefault();
         const user = document.getElementById('dropdown-siswa').value; if(!user) return showToast("Pilih siswa!", "warning");
         const btn = document.getElementById('btn-login-siswa'); btn.innerText = "Memverifikasi..."; btn.disabled = true;
         callAPI('loginSiswa', { username: user, password: document.getElementById('pass-siswa').value }).then(res => {
             btn.innerText = "Masuk (Siswa)"; btn.disabled = false;
-            if(res.success) { currentUser = res.user; currentHabits = res.habits; showApp('siswa'); } else showToast(res.message, "danger");
+            if(res.success) { 
+                currentUser = res.user; currentHabits = res.habits; 
+                localStorage.setItem('akrab_current_user', JSON.stringify(currentUser));
+                localStorage.setItem('akrab_current_role', 'siswa');
+                localStorage.setItem('akrab_current_habits', JSON.stringify(currentHabits));
+                showApp('siswa'); 
+            } else showToast(res.message, "danger");
         });
     };
     document.getElementById('form-login-admin').onsubmit = function(e) { e.preventDefault();
         const btn = document.getElementById('btn-login-admin'); btn.innerText = "Memverifikasi..."; btn.disabled = true;
         callAPI('loginAdmin', { user: document.getElementById('user-admin').value, pass: document.getElementById('pass-admin').value }).then(res => {
             btn.innerText = "Masuk (Guru Wali)"; btn.disabled = false;
-            if(res.success) { currentUser = { username: document.getElementById('user-admin').value, nama: res.nama, role: 'admin' }; document.getElementById('admin-welcome-name').innerText = "Guru Wali: " + res.nama; showApp('admin'); } else showToast(res.message, "danger");
+            if(res.success) { 
+                currentUser = { username: document.getElementById('user-admin').value, nama: res.nama, role: 'admin' }; 
+                document.getElementById('admin-welcome-name').innerText = "Guru Wali: " + res.nama; 
+                localStorage.setItem('akrab_current_user', JSON.stringify(currentUser));
+                localStorage.setItem('akrab_current_role', 'admin');
+                showApp('admin'); 
+            } else showToast(res.message, "danger");
         });
     };
     document.getElementById('form-login-walikelas').onsubmit = function(e) { e.preventDefault();
         const btn = document.getElementById('btn-login-walikelas'); btn.innerText = "Memverifikasi..."; btn.disabled = true;
         callAPI('loginWaliKelas', { user: document.getElementById('user-walikelas').value, pass: document.getElementById('pass-walikelas').value }).then(res => {
             btn.innerText = "Masuk (Wali Kelas)"; btn.disabled = false;
-            if(res.success) { currentUser = { username: document.getElementById('user-walikelas').value, nama: res.nama, role: 'walikelas' }; document.getElementById('walikelas-welcome-name').innerText = "Wali Kelas: " + res.nama; showApp('walikelas'); } else showToast(res.message, "danger");
+            if(res.success) { 
+                currentUser = { username: document.getElementById('user-walikelas').value, nama: res.nama, role: 'walikelas' }; 
+                document.getElementById('walikelas-welcome-name').innerText = "Wali Kelas: " + res.nama; 
+                localStorage.setItem('akrab_current_user', JSON.stringify(currentUser));
+                localStorage.setItem('akrab_current_role', 'walikelas');
+                showApp('walikelas'); 
+            } else showToast(res.message, "danger");
         });
     };
     document.getElementById('form-login-bk').onsubmit = function(e) { e.preventDefault();
         const btn = document.getElementById('btn-login-bk'); btn.innerText = "Memverifikasi..."; btn.disabled = true;
         callAPI('loginBK', { user: document.getElementById('user-bk').value, pass: document.getElementById('pass-bk').value }).then(res => {
             btn.innerText = "Masuk (Guru BK)"; btn.disabled = false;
-            if(res.success) { currentUser = { username: document.getElementById('user-bk').value, nama: res.nama, role: 'gurubk' }; document.getElementById('bk-welcome-name').innerText = "Guru BK: " + res.nama; showApp('gurubk'); } else showToast(res.message, "danger");
+            if(res.success) { 
+                currentUser = { username: document.getElementById('user-bk').value, nama: res.nama, role: 'gurubk' }; 
+                document.getElementById('bk-welcome-name').innerText = "Guru BK: " + res.nama; 
+                localStorage.setItem('akrab_current_user', JSON.stringify(currentUser));
+                localStorage.setItem('akrab_current_role', 'gurubk');
+                showApp('gurubk'); 
+            } else showToast(res.message, "danger");
         });
     };
 
@@ -792,7 +828,13 @@
         }
     }
 
-    function logout() { location.reload(); }
+    // LOGOUT (MEMBERSIHKAN LOCALSTORAGE)
+    function logout() { 
+        localStorage.removeItem('akrab_current_user');
+        localStorage.removeItem('akrab_current_role');
+        localStorage.removeItem('akrab_current_habits');
+        location.reload(); 
+    }
 
     window.switchTab = function(tabId, btn) {
         document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('d-none')); 
@@ -895,7 +937,7 @@
             tbody.innerHTML = res.students.map(s => {
                 const currentVal = res.evaluations[s.username] || "Tidak Hadir";
                 let optionsHtml = evaluationOptions.map(opt => `<option value="${opt}" ${currentVal === opt ? 'selected' : ''}>${opt}</option>`).join('');
-                return `<tr><td class="fw-bold text-dark">${s.nama}</td><td><select class="form-select form-select-sm school-eval-select" data-username="${s.username}">${optionsHtml}</select></td></tr>`;
+                return `<tr><td class="fw-bold text-dark">${s.nama}</td><td><code>${s.username}</code></td><td><select class="form-select form-select-sm school-eval-select" data-username="${s.username}">${optionsHtml}</select></td></tr>`;
             }).join('');
         });
     };
@@ -1147,53 +1189,48 @@
             showToast("Kasus berhasil dicatat!"); 
             this.reset(); 
             loadPendampinganGuruWali();
-            fetchAdminDashboard(); // PANGGIL ULANG AGAR DISIPLIN POSITIF DI DASHBOARD GW LANGSUNG TERUPDATE
+            fetchAdminDashboard();
         });
     };
 
     function loadPendampinganWaliKelas() {
-    const tbody = document.getElementById('wk-pendampingan-list'); 
-    tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4">Memuat data...</td></tr>`;
-    
-    // Mengirim username dan nama Wali Kelas yang sedang login
-    callAPI('getPendampinganWaliKelas', { 
-        username: currentUser.username,
-        namaGuru: currentUser.nama 
-    }).then(res => {
-        currentPendampinganData = res.data;
-        if(res.data.length === 0) { 
-            tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted small">Tidak ada data kasus untuk siswa perwalian Anda.</td></tr>`; 
-            return; 
-        }
-        tbody.innerHTML = res.data.map(p => {
-            let badgeClass = p.Status === 'Selesai' ? 'badge-done' : (p.Status.includes('BK') ? 'badge-forward' : 'badge-wait');
-            let statusBadgeHtml = `<span class="status-badge ${badgeClass}">${p.Status}</span>`;
-            
-            let aksi = `
-                <button class="btn btn-sm btn-success py-1 px-2 fw-bold text-white me-1" onclick="openWkModal('${p.ID}', 'Selesai')">Tindak Lanjut</button>
-                <button class="btn btn-sm text-white py-1 px-2 fw-bold" style="background-color: #7c3aed;" onclick="openWkModal('${p.ID}', 'Teruskan ke Guru BK')">Teruskan ke BK</button>
-            `;
-            return `
-                <tr>
-                    <td class="small">${p.Tanggal}</td>
-                    <td class="fw-bold">
-                        ${p.Nama_Siswa}
-                        <div class="text-danger small fw-normal">Pelanggaran: ${p.Bentuk_Pendampingan}</div>
-                        <div class="text-dark small fw-semibold mt-1">Penanganan Guru Wali:</div>
-                        <div class="text-muted small fw-normal">${p.Hasil_Tindak_Lanjut || '-'}</div>
-                    </td>
-                    <td>
-                        <div class="small text-dark">${p.Penanganan_Wali_Kelas || '<span class="text-muted italic">-</span>'}</div>
-                    </td>
-                    <td>${statusBadgeHtml}</td>
-                    <td class="text-center no-print">${aksi}</td>
-                </tr>
-            `;
-        }).join('');
-    });
-}
+        const tbody = document.getElementById('wk-pendampingan-list'); 
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4">Memuat data...</td></tr>`;
+        
+        callAPI('getPendampinganWaliKelas', {}).then(res => {
+            currentPendampinganData = res.data;
+            if(res.data.length === 0) { 
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted small">Tidak ada data kasus.</td></tr>`; 
+                return; 
+            }
+            tbody.innerHTML = res.data.map(p => {
+                let badgeClass = p.Status === 'Selesai' ? 'badge-done' : (p.Status.includes('BK') ? 'badge-forward' : 'badge-wait');
+                let statusBadgeHtml = `<span class="status-badge ${badgeClass}">${p.Status}</span>`;
+                
+                let aksi = `
+                    <button class="btn btn-sm btn-success py-1 px-2 fw-bold text-white me-1" onclick="openWkModal('${p.ID}', 'Selesai')">Tindak Lanjut</button>
+                    <button class="btn btn-sm text-white py-1 px-2 fw-bold" style="background-color: #7c3aed;" onclick="openWkModal('${p.ID}', 'Teruskan ke Guru BK')">Teruskan ke BK</button>
+                `;
+                return `
+                    <tr>
+                        <td class="small">${p.Tanggal}</td>
+                        <td class="fw-bold">
+                            ${p.Nama_Siswa}
+                            <div class="text-danger small fw-normal">Pelanggaran: ${p.Bentuk_Pendampingan}</div>
+                            <div class="text-dark small fw-semibold mt-1">Penanganan Guru Wali:</div>
+                            <div class="text-muted small fw-normal">${p.Hasil_Tindak_Lanjut || '-'}</div>
+                        </td>
+                        <td>
+                            <div class="small text-dark">${p.Penanganan_Wali_Kelas || '<span class="text-muted italic">-</span>'}</div>
+                        </td>
+                        <td>${statusBadgeHtml}</td>
+                        <td class="text-center no-print">${aksi}</td>
+                    </tr>
+                `;
+            }).join('');
+        });
+    }
 
-    // MODAL WALI KELAS DIPANGGIL UNTUK DUA STATUS (SELESAI / TERUSKAN KE BK)
     window.openWkModal = function(id, targetStatus) {
         document.getElementById('wk-kasus-id').value = id;
         document.getElementById('wk-target-status').value = targetStatus;
@@ -1295,55 +1332,6 @@
         });
     };
 
-    window.cetakLaporanGuruWaliKasus = function() {
-        siapkanPrintPendampingan(currentPendampinganData, `REKAP KASUS SISWA - GURU WALI: ${currentUser.nama.toUpperCase()}`); 
-        setTimeout(() => window.print(), 1000);
-    };
-
-    window.cetakLaporanWaliKelas = function() {
-        siapkanPrintPendampingan(currentPendampinganData, `REKAP KASUS WALI KELAS: ${currentUser.nama.toUpperCase()}`); 
-        setTimeout(() => window.print(), 1000);
-    };
-
-    window.cetakLaporanBK = function() {
-        siapkanPrintPendampingan(currentPendampinganData, `REKAP PENANGANAN AKHIR GURU BK: ${currentUser.nama.toUpperCase()}`); 
-        setTimeout(() => window.print(), 1000);
-    };
-
-    function siapkanPrintPendampingan(dataArray, subtitle) {
-        document.getElementById('print-container').classList.remove('active-print');
-        document.getElementById('print-pendampingan-container').classList.add('active-print');
-
-        document.getElementById('print-p-logo-daerah').src = schoolSettings.logo_daerah || 'https://cdn.phototourl.com/member/2026-07-24-7da31f21-29e7-4dac-8841-dace531ebe04.png';
-        document.getElementById('print-p-logo-sekolah').src = schoolSettings.logo_sekolah || 'https://cdn.phototourl.com/member/2026-07-21-0de133fa-2526-4239-ad76-cc617208cc99.png';
-        document.getElementById('print-p-subtitle').innerText = subtitle;
-        const today = new Date().toLocaleDateString('id-ID', { day:'2-digit', month:'long', year:'numeric'});
-        
-        document.getElementById('print-pendampingan-tbody').innerHTML = dataArray.map((p, i) => {
-            let info = `<strong>Pelanggaran (${p.Guru_Wali}):</strong> ${p.Bentuk_Pendampingan}`;
-            if(p.Penanganan_Wali_Kelas) info += `<br><strong>Penanganan WK:</strong> ${p.Penanganan_Wali_Kelas}`;
-            if(p.Penanganan_BK) info += `<br><strong>Penanganan BK:</strong> ${p.Penanganan_BK}`;
-            return `<tr><td class="text-center">${i+1}</td><td class="text-center">${p.Tanggal}</td><td class="fw-bold">${p.Nama_Siswa}</td><td>${p.Kategori_Kasus}</td><td>${info}</td><td class="text-center fw-bold ${p.Status==='Selesai'?'text-success':''}">${p.Status}</td></tr>`;
-        }).join('');
-
-        document.getElementById('print-p-signature').innerHTML = `
-        <table style="width: 100%; text-align: center; border: none !important; page-break-inside: avoid; margin-top: 40px; font-size:12px;">
-            <tr>
-                <td style="width: 50%; border: none !important; vertical-align: top;">
-                    <p class="mb-1">Mengetahui,<br>Kepala Sekolah</p>
-                    <br><br><br><br>
-                    <p class="fw-bold mb-0 text-decoration-underline">${schoolSettings.nama_kepsek || 'Badiang, S.Pd.,M.Pd'}</p>
-                    <p class="small">NIP. ${schoolSettings.nip_kepsek || '19801007 200502 1003'}</p>
-                </td>
-                <td style="width: 50%; border: none !important; vertical-align: top;">
-                    <p class="mb-1">${schoolSettings.tempat_ttd || 'Poli-Polia'}, ${today}<br>${currentUser.role === 'gurubk' ? 'Guru BK' : 'Wali Kelas'}</p>
-                    <br><br><br><br>
-                    <p class="fw-bold mb-0 text-decoration-underline">${currentUser.nama}</p>
-                </td>
-            </tr>
-        </table>`;
-    }
-
     function loadStudentDashboard() { 
         document.querySelectorAll('.current-user-name').forEach(el => el.innerText = currentUser.nama.split(" ")[0]); 
         document.getElementById('form-profile-siswa').elements['nama'].value = currentUser.nama; 
@@ -1378,6 +1366,10 @@
         callAPI('saveHabit', { username: currentUser.username, type: type, tgl: tgl, detail1: detail1, detail2: detail2, lat: "", lng: "", ip: clientIP }).then(() => { 
             if(!currentHabits[type]) currentHabits[type] = []; 
             currentHabits[type].unshift({ tgl: tgl, detail1: detail1, detail2: detail2 }); 
+            
+            // Perbarui juga data habit di localStorage untuk siswa
+            localStorage.setItem('akrab_current_habits', JSON.stringify(currentHabits));
+
             btn.innerText = "Simpan Jurnal"; btn.disabled = false; bootstrap.Modal.getInstance(document.getElementById(modalId)).hide(); renderHabitCards(); showToast("Jurnal berhasil disimpan!"); formEl.reset(); 
         }).catch(() => { btn.innerText = "Simpan Jurnal"; btn.disabled = false; showToast("Gagal menyimpan!", "danger"); }); 
     }
