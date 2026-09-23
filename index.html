@@ -827,11 +827,12 @@
     }
 
     function logout() { 
-        localStorage.removeItem('akrab_current_user');
-        localStorage.removeItem('akrab_current_role');
-        localStorage.removeItem('akrab_current_habits');
-        location.reload(); 
-    }
+    localStorage.removeItem('akrab_current_user');
+    localStorage.removeItem('akrab_current_role');
+    localStorage.removeItem('akrab_current_habits');
+    document.getElementById('section-app').classList.add('d-none');
+    document.getElementById('section-login').classList.remove('d-none');
+}
 
     window.switchTab = function(tabId, btn) {
         document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('d-none')); 
