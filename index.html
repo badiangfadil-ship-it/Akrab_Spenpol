@@ -687,7 +687,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxTzTEJmw4V3D7kn_QCj1TO0VX9A5DD81f3fB4XTePHre8tBBSG6zfRbWUZsS9BzEq8CQ/exec"; 
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzqYR4lwyEw5eSeTzRKteDFO25GtBR7EbU_Z0x_r380FcngOyCsi48GOs8-2u1Kflah/exec"; 
 
     async function callAPI(action, params = {}) {
         try {
@@ -711,7 +711,6 @@
         document.getElementById('admin-report-year').value = today.getFullYear();
         document.getElementById('admin-report-month').value = today.getMonth() + 1;
 
-        // CEK LOCALSTORAGE UNTUK AUTO-LOGIN APABILA SESI SUDAH ADA
         const savedUser = localStorage.getItem('akrab_current_user');
         const savedRole = localStorage.getItem('akrab_current_role');
         const savedHabits = localStorage.getItem('akrab_current_habits');
@@ -753,7 +752,6 @@
     };
     function populateDropdownSiswa(st) { document.getElementById('dropdown-siswa').innerHTML = '<option value="">-- Pilih Siswa --</option>' + st.map(s => `<option value="${s.username}">${s.nama}</option>`).join(''); }
 
-    // LOGIN HANDLERS (DITAMBAHKAN LOCALSTORAGE)
     document.getElementById('form-login-siswa').onsubmit = function(e) { e.preventDefault();
         const user = document.getElementById('dropdown-siswa').value; if(!user) return showToast("Pilih siswa!", "warning");
         const btn = document.getElementById('btn-login-siswa'); btn.innerText = "Memverifikasi..."; btn.disabled = true;
@@ -828,7 +826,6 @@
         }
     }
 
-    // LOGOUT (MEMBERSIHKAN LOCALSTORAGE)
     function logout() { 
         localStorage.removeItem('akrab_current_user');
         localStorage.removeItem('akrab_current_role');
@@ -967,7 +964,6 @@
         });
     };
 
-    // FUNGSI STATISTIK DASHBOARD GURU WALI
     function fetchAdminDashboard() {
         if(!currentUser || currentUser.role !== 'admin') return;
         document.getElementById('admin-total-siswa').innerText = "...";
@@ -1016,7 +1012,6 @@
         });
     };
 
-    // CETAK JURNAL SISWA (GURU WALI)
     document.getElementById('btn-admin-view-report').onclick = function() {
         const uname = document.getElementById('admin-report-select-siswa').value; if(!uname) return showToast("Pilih siswa terlebih dahulu!", "warning");
         this.innerHTML = "Menarik Data..."; this.disabled = true;
@@ -1120,9 +1115,7 @@
         setTimeout(() => window.print(), 1000);
     };
 
-    // -------------------------------------------------------------
-    // ALUR PENDAMPINGAN KASUS TERKONEKSI (GW -> WK -> BK)
-    // -------------------------------------------------------------
+    // FUNGSI PENDAMPINGAN KASUS TERKONEKSI & CETAK
     function loadPendampinganGuruWali() {
         const tbody = document.getElementById('gw-pendampingan-list'); 
         tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4">Memuat data...</td></tr>`;
@@ -1197,13 +1190,14 @@
         const tbody = document.getElementById('wk-pendampingan-list'); 
         tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4">Memuat data...</td></tr>`;
         
-        callAPI('getPendampinganWaliKelas', {}).then(res => {
-            currentPendampinganData = res.data;
-            if(res.data.length === 0) { 
+        // PERBAIKAN: Mengirim namaGuru & username agar filter perwalian Wali Kelas akurat
+        callAPI('getPendampinganWaliKelas', { namaGuru: currentUser.nama, username: currentUser.username }).then(res => {
+            currentPendampinganData = res.data || [];
+            if(currentPendampinganData.length === 0) { 
                 tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted small">Tidak ada data kasus.</td></tr>`; 
                 return; 
             }
-            tbody.innerHTML = res.data.map(p => {
+            tbody.innerHTML = currentPendampinganData.map(p => {
                 let badgeClass = p.Status === 'Selesai' ? 'badge-done' : (p.Status.includes('BK') ? 'badge-forward' : 'badge-wait');
                 let statusBadgeHtml = `<span class="status-badge ${badgeClass}">${p.Status}</span>`;
                 
@@ -1277,12 +1271,12 @@
         tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4">Memuat data...</td></tr>`;
         
         callAPI('getPendampinganBK', {}).then(res => {
-            currentPendampinganData = res.data;
-            if(res.data.length === 0) { 
+            currentPendampinganData = res.data || [];
+            if(currentPendampinganData.length === 0) { 
                 tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted small">Tidak ada data kasus.</td></tr>`; 
                 return; 
             }
-            tbody.innerHTML = res.data.map(p => {
+            tbody.innerHTML = currentPendampinganData.map(p => {
                 let badgeClass = p.Status === 'Selesai' ? 'badge-done' : 'badge-forward';
                 let statusBadgeHtml = `<span class="status-badge ${badgeClass}">${p.Status}</span>`;
                 
@@ -1332,6 +1326,66 @@
         });
     };
 
+    // FUNGSI CETAK LAPORAN KASUS (GW, WK, BK)
+    window.cetakLaporanGuruWaliKasus = function() {
+        if(!currentPendampinganData || currentPendampinganData.length === 0) return showToast("Tidak ada data kasus untuk dicetak.", "warning");
+        renderPrintPendampingan("REKAPITULASI PENANGANAN KASUS SISWA (GURU WALI)", "Pelapor: " + currentUser.nama);
+    };
+    window.cetakLaporanWaliKelas = function() {
+        if(!currentPendampinganData || currentPendampinganData.length === 0) return showToast("Tidak ada data kasus kelas untuk dicetak.", "warning");
+        renderPrintPendampingan("REKAPITULASI PENANGANAN KASUS KELAS (WALI KELAS)", "Wali Kelas: " + currentUser.nama);
+    };
+    window.cetakLaporanBK = function() {
+        if(!currentPendampinganData || currentPendampinganData.length === 0) return showToast("Tidak ada data kasus BK untuk dicetak.", "warning");
+        renderPrintPendampingan("REKAPITULASI PENANGANAN KASUS BIMBINGAN KONSELING (BK)", "Guru BK: " + currentUser.nama);
+    };
+
+    function renderPrintPendampingan(title, subtitle) {
+        document.getElementById('print-container').classList.remove('active-print');
+        document.getElementById('print-pendampingan-container').classList.add('active-print');
+
+        document.getElementById('print-p-logo-daerah').src = schoolSettings.logo_daerah || 'https://cdn.phototourl.com/member/2026-07-24-7da31f21-29e7-4dac-8841-dace531ebe04.png'; 
+        document.getElementById('print-p-logo-sekolah').src = schoolSettings.logo_sekolah || 'https://cdn.phototourl.com/member/2026-07-21-0de133fa-2526-4239-ad76-cc617208cc99.png';
+        document.getElementById('print-p-title').innerText = title;
+        document.getElementById('print-p-subtitle').innerText = subtitle;
+
+        const tbody = document.getElementById('print-pendampingan-tbody');
+        tbody.innerHTML = currentPendampinganData.map((p, idx) => `
+            <tr>
+                <td class="text-center">${idx + 1}</td>
+                <td class="text-center">${p.Tanggal}</td>
+                <td><b>${p.Nama_Siswa}</b></td>
+                <td>${p.Kategori_Kasus}</td>
+                <td>
+                    <b>GW:</b> ${p.Bentuk_Pendampingan} (${p.Hasil_Tindak_Lanjut || '-'})<br>
+                    <b>WK:</b> ${p.Penanganan_Wali_Kelas || '-'}<br>
+                    <b>BK:</b> ${p.Penanganan_BK || '-'}
+                </td>
+                <td class="text-center"><b>${p.Status}</b></td>
+            </tr>
+        `).join('');
+
+        const today = new Date().toLocaleDateString('id-ID', { day:'2-digit', month:'long', year:'numeric'});
+        document.getElementById('print-p-signature').innerHTML = `
+        <table style="width: 100%; text-align: center; border: none !important; page-break-inside: avoid; margin-top: 15px; font-size:10px;">
+            <tr>
+                <td style="width: 50%; vertical-align: top; border: none !important;">
+                    <p class="mb-1">Mengetahui,<br>Kepala Sekolah</p>
+                    <br><br><br>
+                    <p class="fw-bold mb-0 text-decoration-underline">${schoolSettings.nama_kepsek || 'Badiang, S.Pd.,M.Pd'}</p>
+                    <p class="small">NIP. ${schoolSettings.nip_kepsek || '19801007 200502 1003'}</p>
+                </td>
+                <td style="width: 50%; vertical-align: top; border: none !important;">
+                    <p class="mb-1">${schoolSettings.tempat_ttd || 'Poli-Polia'}, ${today}<br>Petugas / Guru</p>
+                    <br><br><br>
+                    <p class="fw-bold mb-0 text-decoration-underline">${currentUser.nama || '____________________'}</p>
+                </td>
+            </tr>
+        </table>`;
+
+        setTimeout(() => window.print(), 1000);
+    }
+
     function loadStudentDashboard() { 
         document.querySelectorAll('.current-user-name').forEach(el => el.innerText = currentUser.nama.split(" ")[0]); 
         document.getElementById('form-profile-siswa').elements['nama'].value = currentUser.nama; 
@@ -1367,7 +1421,6 @@
             if(!currentHabits[type]) currentHabits[type] = []; 
             currentHabits[type].unshift({ tgl: tgl, detail1: detail1, detail2: detail2 }); 
             
-            // Perbarui juga data habit di localStorage untuk siswa
             localStorage.setItem('akrab_current_habits', JSON.stringify(currentHabits));
 
             btn.innerText = "Simpan Jurnal"; btn.disabled = false; bootstrap.Modal.getInstance(document.getElementById(modalId)).hide(); renderHabitCards(); showToast("Jurnal berhasil disimpan!"); formEl.reset(); 
